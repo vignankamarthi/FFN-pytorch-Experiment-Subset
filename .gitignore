@@ -1,0 +1,41 @@
+# Dataset contents (structure tracked via .gitkeep)
+database/data/**/*.webm
+database/labels/*.json
+
+# Original dataset archives
+20bn-something-something-v2-*
+
+# Official FFN repo (internal reference only)
+FFN-pytorch/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Environment
+.env
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Training outputs
+checkpoints/
+runs/
+logs/
+*.pt
+*.pth
+
+# Jupyter
+.ipynb_checkpoints/

@@ -14,7 +14,7 @@
 
 ## Phase 2: Data
 
-- [ ] 2.1. Apply for Something-Something V2 at Qualcomm's AI datasets site. Takes 1-2 days.
+- [X] 2.1. Apply for Something-Something V2 at Qualcomm's AI datasets site. Takes 1-2 days.
 - [ ] 2.2. Download and extract videos (~20GB) and label CSVs.
 - [ ] 2.3. Verify: ~169k train, ~25k val, 174 classes.
 
