@@ -4,19 +4,33 @@
 
 ---
 
+## Compute Requirements
+
+| Phase | Where to Run | Notes |
+|-------|--------------|-------|
+| 1-4 | Local Mac | Setup, data, code implementation |
+| **5** | **GPU Cluster** | Train vanilla TSM (50 epochs × 169k videos) |
+| 6 | Local Mac | Build FFN components |
+| **7** | **GPU Cluster** | Train FFN (50 epochs × 169k videos × 3 frame counts) |
+| 8 | Cluster or Mac | Validation/evaluation (faster on cluster) |
+
+**What's an epoch?** One pass through all 168,913 training videos. At batch size 8, that's ~21,114 batches per epoch. 50 epochs = model sees each video 50 times.
+
+---
+
 ## Phase 1: Setup
 
 - [X] 1.1. Clone official repo: `git clone https://github.com/BeSpontaneous/FFN-pytorch.git`
 - [X] 1.2. Create your own project folder separately — write code from scratch, reference their repo.
-- [ ] 1.3. Create conda env with PyTorch + CUDA. Install decord, einops, tensorboard. Verify GPU.
+- [X] 1.3. Create Python venv with PyTorch (MPS on Mac / CUDA on cluster). Install decord, einops, tensorboard. Verify GPU.
 
 ---
 
 ## Phase 2: Data
 
 - [X] 2.1. Apply for Something-Something V2 at Qualcomm's AI datasets site. Takes 1-2 days.
-- [ ] 2.2. Download and extract videos (~20GB) and label CSVs.
-- [ ] 2.3. Verify: ~169k train, ~25k val, 174 classes.
+- [X] 2.2. Download and extract videos (~20GB) and label CSVs.
+- [X] 2.3. Verify: ~169k train, ~25k val, 174 classes.
 
 ---
 
@@ -43,6 +57,8 @@
 
 ## Phase 5: Train Vanilla TSM
 
+**⚠️ CLUSTER REQUIRED** — 50 epochs × 169k videos. Expect 1-2 days on GPU cluster, 1-2 weeks on local Mac.
+
 - [ ] 5.1. Hyperparams: SGD, momentum 0.9, weight decay 5e-4, LR 0.01 cosine decay, batch 8/GPU, 50 epochs. Reference: `2D_Network/opts.py`
 - [ ] 5.2. Train at 16F only. Save checkpoints. Reference: `2D_Network/main.py`
 - [ ] 5.3. Evaluate same checkpoint at 16F (~61%), 8F (~52%), 4F (~31%). This is TFD.
@@ -60,6 +76,8 @@
 ---
 
 ## Phase 7: Train FFN
+
+**⚠️ CLUSTER REQUIRED** — 50 epochs × 169k videos × 3 frame counts per batch. Expect 1-2 days on GPU cluster.
 
 - [ ] 7.1. Same hyperparams as vanilla TSM.
 - [ ] 7.2. Each batch: load v_L, v_M, v_H from same video, forward all three, compute combined loss. Reference: `2D_Network/main_FFN.py` lines 342-368

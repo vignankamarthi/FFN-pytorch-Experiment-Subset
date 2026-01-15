@@ -56,27 +56,25 @@ Why this matters: Standard practice trains separate models for each frame count.
 
 ## Current Repository State
 
-What exists right now:
-
 ```
 FFN-pytorch-Experiment-Subset/
-├── labels/
-│   ├── labels.json          (SSv2 class names)
-│   ├── train.json           (training video IDs)
-│   ├── validation.json      (validation video IDs)
-│   └── test.json
-├── STEP_BY_STEP_REFERENCE.md (our progress tracker)
-├── Problem Statement + Reference.md
-├── Frame Flexible Network.pdf (original paper)
-├── Dataset Instructions.pdf
-└── CLAUDE.md (this file)
+├── database/
+│   ├── data/
+│   │   └── 20bn-something-something-v2/   (220,847 .webm videos, gitignored)
+│   └── labels/
+│       ├── train.json       (168,913 samples)
+│       ├── validation.json  (24,777 samples)
+│       ├── labels.json      (174 classes)
+│       └── test.json
+├── FFN-pytorch/             (official repo, gitignored, reference only)
+├── .venv/                   (Python 3.12 virtual environment)
+├── requirements.txt
+├── STEP_BY_STEP_REFERENCE.md
+├── CLAUDE.md (this file)
+└── .gitignore
 ```
 
-What we'll build: Structure emerges organically as we implement. No predictions.
-
-External resources:
-- Official FFN repo cloned separately (reference only, not modified)
-- SSv2 videos to be downloaded (approximately 20GB)
+What we'll build: Source code structure emerges organically as we implement.
 
 ---
 
@@ -279,6 +277,83 @@ class TSMBackbone(nn.Module):
 - Constants in UPPER_SNAKE_CASE
 - Classes in PascalCase, functions/variables in snake_case
 - Keep functions short and focused
+
+---
+
+## CRITICAL: Device-Agnostic Code (Cluster Compatibility)
+
+**ALL code must run on both Mac (MPS) and NVIDIA cluster (CUDA) without modification.**
+
+We develop locally on Mac, but training happens on the SMILE Lab GPU cluster. Code that only works on one platform is unacceptable. Follow these patterns religiously.
+
+### Device Selection Pattern
+
+Every script that uses GPU must include this:
+
+```python
+import torch
+
+def get_device() -> torch.device:
+    """
+    Get the best available device.
+
+    Returns
+    -------
+    torch.device
+        CUDA if available, else MPS if available, else CPU.
+    """
+    if torch.cuda.is_available():
+        return torch.device('cuda')
+    elif torch.backends.mps.is_available():
+        return torch.device('mps')
+    else:
+        return torch.device('cpu')
+
+# Usage
+device = get_device()
+model = model.to(device)
+data = data.to(device)
+```
+
+### Rules for Device-Agnostic Code
+
+1. **NEVER hardcode devices**: No `torch.device('cuda')` or `torch.device('mps')` directly
+2. **Use the helper function**: Always use `get_device()` or pass device as parameter
+3. **Move data consistently**: All tensors involved in computation must be on same device
+4. **Test on CPU too**: If MPS fails, code should fall back gracefully
+
+### What to Avoid
+
+```python
+# BAD - hardcoded device
+model = model.cuda()
+x = x.to('mps')
+
+# GOOD - device-agnostic
+device = get_device()
+model = model.to(device)
+x = x.to(device)
+```
+
+### Testing Before Cluster Submission
+
+Before submitting any training job to the cluster:
+
+1. Run a mini test locally (1-2 batches) to verify code works
+2. Test with `CUDA_VISIBLE_DEVICES="" python train.py` to force CPU mode
+3. Verify checkpoints save/load correctly
+4. Ensure all paths are configurable (not hardcoded)
+
+### Cluster-Ready Checklist
+
+Before Phase 5 and Phase 7 (training phases), verify:
+
+- [ ] Device selection uses `get_device()` pattern
+- [ ] All file paths are configurable via arguments
+- [ ] Batch size is configurable (cluster may use different size)
+- [ ] Checkpoint saving/loading works
+- [ ] Code runs without errors on 1-2 batches locally
+- [ ] No hardcoded absolute paths
 
 ---
 
