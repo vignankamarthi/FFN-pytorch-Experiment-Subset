@@ -57,7 +57,7 @@
 
 ## Phase 5: Train Vanilla TSM
 
-**⚠️ CLUSTER REQUIRED** — 50 epochs × 169k videos. Expect 1-2 days on GPU cluster, 1-2 weeks on local Mac.
+**CLUSTER REQUIRED** — 50 epochs x 169k videos. Expect 1-2 days on GPU cluster, 1-2 weeks on local Mac.
 
 - [ ] 5.1. Hyperparams: SGD, momentum 0.9, weight decay 5e-4, LR 0.01 cosine decay, batch 8/GPU, 50 epochs. Reference: `2D_Network/opts.py`
 - [ ] 5.2. Train at 16F only. Save checkpoints. Reference: `2D_Network/main.py`
@@ -77,7 +77,7 @@
 
 ## Phase 7: Train FFN
 
-**⚠️ CLUSTER REQUIRED** — 50 epochs × 169k videos × 3 frame counts per batch. Expect 1-2 days on GPU cluster.
+**CLUSTER REQUIRED** — 50 epochs x 169k videos x 3 frame counts per batch. Expect 1-2 days on GPU cluster.
 
 - [ ] 7.1. Same hyperparams as vanilla TSM.
 - [ ] 7.2. Each batch: load v_L, v_M, v_H from same video, forward all three, compute combined loss. Reference: `2D_Network/main_FFN.py` lines 342-368
