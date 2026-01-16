@@ -66,6 +66,10 @@ FFN-pytorch-Experiment-Subset/
 │       ├── validation.json  (24,777 samples)
 │       ├── labels.json      (174 classes)
 │       └── test.json
+├── src/
+│   └── data/                (data loading pipeline)
+├── tests/                   (structured test suite)
+├── docs/                    (technical breakdowns)
 ├── FFN-pytorch/             (official repo, gitignored, reference only)
 ├── .venv/                   (Python 3.12 virtual environment)
 ├── requirements.txt
@@ -277,6 +281,55 @@ class TSMBackbone(nn.Module):
 - Constants in UPPER_SNAKE_CASE
 - Classes in PascalCase, functions/variables in snake_case
 - Keep functions short and focused
+
+---
+
+## CRITICAL: Testing Before Cluster Phases
+
+**End-to-end robust tests are REQUIRED before every cluster-reliant phase.**
+
+Cluster debugging is painful - limited access, long queue times, no interactive debugging. All code must be thoroughly validated locally before cluster submission.
+
+### Testing Philosophy
+
+```
+tests/
+├── __init__.py
+├── test_data_loading.py    (Phase 3 - data pipeline)
+├── test_model.py           (Phase 4 - TSM architecture)
+├── test_training.py        (Phase 5 - training loop, pre-cluster)
+├── test_ffn.py             (Phase 6 - FFN modifications)
+└── test_ffn_training.py    (Phase 7 - FFN training, pre-cluster)
+```
+
+### Pre-Cluster Test Requirements
+
+Before Phase 5 (Vanilla TSM Training) and Phase 7 (FFN Training):
+
+1. **Component tests pass**: Each module works in isolation
+2. **Integration tests pass**: Modules work together (data -> model -> loss -> backward)
+3. **Mini training run**: 1-2 epochs on small subset runs without errors
+4. **Checkpoint save/load**: Model state survives restart
+5. **Multi-frame consistency**: All frame counts (4, 8, 16) produce valid outputs
+
+### Running Tests
+
+```bash
+# From project root, with venv activated
+python -m tests.test_data_loading
+python -m tests.test_model
+# Or use pytest
+pytest tests/
+```
+
+### Test Coverage Gates
+
+| Phase | Required Tests Before Proceeding |
+|-------|----------------------------------|
+| Phase 5 | test_data_loading, test_model, test_training |
+| Phase 7 | All above + test_ffn, test_ffn_training |
+
+No cluster submission until local tests pass. Period.
 
 ---
 

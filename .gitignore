@@ -8,6 +8,10 @@ database/labels/*.json
 # Official FFN repo (internal reference only)
 FFN-pytorch/
 
+# Personal reference docs (not for repo)
+TECHNICAL_REFERENCE.md
+PROBLEM_STATEMENT_REFERENCE.md
+
 # Python
 __pycache__/
 *.py[cod]
