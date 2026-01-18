@@ -36,22 +36,22 @@
 
 ## Phase 3: Data Loading
 
-- [ ] 3.1. Implement video loader with decord. Reference: `2D_Network/ops/dataset.py`
-- [ ] 3.2. Implement uniform frame sampling — divide video into T segments, sample center of each.
-- [ ] 3.3. Implement augmentations — random crop 224, NO horizontal flip (directional actions), ImageNet normalize. Reference: `2D_Network/ops/transforms.py`
-- [ ] 3.4. Build single-frame Dataset returning `(3, T, 224, 224)` and label.
-- [ ] 3.5. Build multi-frame Dataset for FFN — returns v_L (4F), v_M (8F), v_H (16F) from same video. Reference: `2D_Network/ops/dataset_3sequences.py`
+- [X] 3.1. Implement video loader with decord. Reference: `2D_Network/ops/dataset.py`
+- [X] 3.2. Implement uniform frame sampling — divide video into T segments, sample center of each.
+- [X] 3.3. Implement augmentations — random crop 224, NO horizontal flip (directional actions), ImageNet normalize. Reference: `2D_Network/ops/transforms.py`
+- [X] 3.4. Build single-frame Dataset returning `(3, T, 224, 224)` and label.
+- [X] 3.5. Build multi-frame Dataset for FFN — returns v_L (4F), v_M (8F), v_H (16F) from same video. Reference: `2D_Network/ops/dataset_3sequences.py`
 
 ---
 
 ## Phase 4: Vanilla TSM
 
-- [ ] 4.1. Understand TSM: shifts 1/8 channels forward, 1/8 backward, rest unchanged. Zero extra params. Reference: `2D_Network/ops/temporal_shift.py`
-- [ ] 4.2. Implement ResNet-50 backbone with torchvision pretrained weights.
-- [ ] 4.3. Insert TSM after first conv in each residual block. Reference: `2D_Network/ops/backbone/resnet_TSM.py`
-- [ ] 4.4. Add classifier: global avg pool → temporal consensus (avg across T) → FC(2048 → 174). Reference: `2D_Network/ops/models.py`
-- [ ] 4.5. Verify forward: input `(B, 3, 16, 224, 224)` → output `(B, 174)`. Verify backward works.
-- [ ] 4.6. Confirm ~25.6M parameters.
+- [X] 4.1. Understand TSM: shifts 1/8 channels forward, 1/8 backward, rest unchanged. Zero extra params. Reference: `2D_Network/ops/temporal_shift.py`
+- [X] 4.2. Implement ResNet-50 backbone with torchvision pretrained weights.
+- [X] 4.3. Insert TSM after first conv in each residual block. Reference: `2D_Network/ops/backbone/resnet_TSM.py`
+- [X] 4.4. Add classifier: global avg pool → temporal consensus (avg across T) → FC(2048 → 174). Reference: `2D_Network/ops/models.py`
+- [X] 4.5. Verify forward: input `(B, 3, 16, 224, 224)` → output `(B, 174)`. Verify backward works.
+- [X] 4.6. Confirm ~25.6M parameters. (Actual: 23.86M - difference from FC layer 1000→174 classes)
 
 ---
 
