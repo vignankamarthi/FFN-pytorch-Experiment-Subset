@@ -8,11 +8,16 @@ from typing import Tuple
 import torch
 
 
-def get_device() -> torch.device:
+def get_device(verbose: bool = True) -> torch.device:
     """
     Get the best available device.
 
     Priority: CUDA > MPS > CPU
+
+    Parameters
+    ----------
+    verbose : bool, optional
+        If True, print detected device info (default: True).
 
     Returns
     -------
@@ -20,11 +25,30 @@ def get_device() -> torch.device:
         Best available device for computation.
     """
     if torch.cuda.is_available():
-        return torch.device("cuda")
+        device = torch.device("cuda")
+        if verbose:
+            gpu_name = torch.cuda.get_device_name(0)
+            gpu_count = torch.cuda.device_count()
+            print("=" * 60)
+            print("DETECTED: CUDA (NVIDIA GPU)")
+            print(f"  GPU: {gpu_name}")
+            print(f"  Available GPUs: {gpu_count}")
+            print("=" * 60)
     elif torch.backends.mps.is_available():
-        return torch.device("mps")
+        device = torch.device("mps")
+        if verbose:
+            print("=" * 60)
+            print("DETECTED: MPS (Apple Silicon GPU)")
+            print("  Running on Mac Metal Performance Shaders")
+            print("=" * 60)
     else:
-        return torch.device("cpu")
+        device = torch.device("cpu")
+        if verbose:
+            print("=" * 60)
+            print("DETECTED: CPU (No GPU available)")
+            print("  Warning: Training will be slow!")
+            print("=" * 60)
+    return device
 
 
 class AverageMeter:
