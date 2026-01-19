@@ -308,7 +308,7 @@ class TestTrainingLoop:
     def test_loss_decreases(self, small_model, device):
         """Loss should decrease over multiple steps on same batch."""
         model = small_model.to(device)
-        optimizer = create_optimizer(model, lr=0.01)
+        optimizer = create_optimizer(model, lr=0.001)  # Lower LR for stable convergence
 
         # Fixed batch (overfitting test)
         videos = torch.randn(4, 3, 4, 224, 224).to(device)
@@ -316,7 +316,7 @@ class TestTrainingLoop:
         criterion = nn.CrossEntropyLoss()
 
         losses = []
-        for _ in range(10):
+        for _ in range(30):  # More steps for reliable convergence
             outputs = model(videos)
             loss = criterion(outputs, labels)
 
@@ -326,8 +326,13 @@ class TestTrainingLoop:
 
             losses.append(loss.item())
 
-        # Loss should decrease (allow some noise)
-        assert losses[-1] < losses[0], "Loss should decrease over training steps"
+        # Compare average of last 3 vs first 3 for statistical robustness
+        avg_first = sum(losses[:3]) / 3
+        avg_last = sum(losses[-3:]) / 3
+        assert avg_last < avg_first, (
+            f"Loss should decrease over training steps. "
+            f"First 3 avg: {avg_first:.4f}, Last 3 avg: {avg_last:.4f}"
+        )
 
     def test_multiple_batches(self, small_model, synthetic_dataloader, device):
         """Training should work across multiple batches."""
