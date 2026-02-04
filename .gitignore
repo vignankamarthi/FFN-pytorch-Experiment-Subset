@@ -2,6 +2,9 @@
 database/data/**/*.webm
 database/labels/*.json
 
+# Cluster setup guide
+CLUSTER_SETUP.md
+
 # Original dataset archives
 20bn-something-something-v2-*
 
