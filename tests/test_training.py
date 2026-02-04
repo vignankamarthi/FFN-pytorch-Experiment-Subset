@@ -430,6 +430,28 @@ class TestTrainer:
         # Should have tracked best accuracy
         assert trainer.current_epoch == 1  # 0-indexed, so epoch 1 is the last
 
+    def test_latest_checkpoint_created(self, trainer_setup):
+        """latest.pth should be created after training for resume capability."""
+        trainer = trainer_setup
+
+        # Train for 2 epochs
+        trainer.train(
+            epochs=2,
+            start_epoch=0,
+            validate_every=1,
+            save_every=5,  # Even with save_every=5, latest.pth should exist
+        )
+
+        # latest.pth should always be created (for cluster resume capability)
+        latest_path = trainer.checkpoint_dir / "latest.pth"
+        assert latest_path.exists(), "latest.pth should be created for resume capability"
+
+        # Verify it contains valid checkpoint data
+        checkpoint = torch.load(latest_path, weights_only=False)
+        assert "epoch" in checkpoint
+        assert "model_state_dict" in checkpoint
+        assert "optimizer_state_dict" in checkpoint
+
 
 # -----------------------------------------------------------------------------
 # Edge Cases

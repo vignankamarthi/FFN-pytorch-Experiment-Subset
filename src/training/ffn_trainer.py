@@ -370,9 +370,12 @@ class FFNTrainer:
                 if acc_8f > self.best_acc_8f:
                     self.best_acc_8f = acc_8f
 
-            # Regular checkpoint
+            # Regular checkpoint every N epochs
             if (epoch + 1) % save_every == 0:
                 self._save_checkpoint(f"epoch_{epoch + 1}.pth")
+
+            # Always save latest.pth for resume capability
+            self._save_checkpoint("latest.pth")
 
         # Save final checkpoint
         self._save_checkpoint("final.pth")

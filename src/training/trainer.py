@@ -288,9 +288,12 @@ class Trainer:
                     self._save_checkpoint("best.pth")
                     print(f"  New best accuracy: {self.best_acc:.2f}%")
 
-            # Regular checkpoint
+            # Regular checkpoint every N epochs
             if (epoch + 1) % save_every == 0:
                 self._save_checkpoint(f"epoch_{epoch + 1}.pth")
+
+            # Always save latest.pth for resume capability
+            self._save_checkpoint("latest.pth")
 
         # Save final checkpoint
         self._save_checkpoint("final.pth")
