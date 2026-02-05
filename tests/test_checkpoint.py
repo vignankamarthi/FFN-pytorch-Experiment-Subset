@@ -243,7 +243,7 @@ class TestLoadCheckpoint:
         """Loading should restore scheduler state."""
         model = small_model
         optimizer = create_optimizer(model)
-        scheduler1 = create_scheduler(optimizer, epochs=10)
+        scheduler1 = create_scheduler(optimizer, lr_steps=[3, 7])
 
         # Step scheduler
         for _ in range(5):
@@ -263,7 +263,7 @@ class TestLoadCheckpoint:
 
         # Create fresh scheduler
         optimizer2 = create_optimizer(model)
-        scheduler2 = create_scheduler(optimizer2, epochs=10)
+        scheduler2 = create_scheduler(optimizer2, lr_steps=[3, 7])
 
         # Load
         load_checkpoint(
@@ -408,7 +408,7 @@ class TestRoundTrip:
         """Training should continue correctly after checkpoint restore."""
         model = small_model.to(device)
         optimizer = create_optimizer(model)
-        scheduler = create_scheduler(optimizer, epochs=10)
+        scheduler = create_scheduler(optimizer, lr_steps=[3, 7])
 
         # Train for 5 epochs worth of scheduler steps
         for _ in range(5):
@@ -427,7 +427,7 @@ class TestRoundTrip:
         # Create fresh setup
         model2 = TSMResNet50(num_classes=10, num_frames=4, pretrained=False).to(device)
         optimizer2 = create_optimizer(model2)
-        scheduler2 = create_scheduler(optimizer2, epochs=10)
+        scheduler2 = create_scheduler(optimizer2, lr_steps=[3, 7])
 
         # Load checkpoint
         info = load_checkpoint(

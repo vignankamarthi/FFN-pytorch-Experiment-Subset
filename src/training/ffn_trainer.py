@@ -4,10 +4,12 @@ Handles the complete FFN training loop including:
 - Multi-frame forward passes (4F, 8F, 16F simultaneously)
 - Temporal distillation loss computation
 - Per-frame-count validation
+- Automatic mixed precision (AMP) training
+- Gradient clipping
 - Comprehensive logging of all loss components
 """
 
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, List
 from pathlib import Path
 import time
 
@@ -15,7 +17,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.optim import SGD, Optimizer
-from torch.optim.lr_scheduler import CosineAnnealingLR, LRScheduler
+from torch.optim.lr_scheduler import MultiStepLR, LRScheduler
 
 from .utils import get_device, AverageMeter, accuracy
 from .checkpoint import save_checkpoint, load_checkpoint
@@ -56,24 +58,31 @@ def create_ffn_optimizer(
 
 def create_ffn_scheduler(
     optimizer: Optimizer,
-    epochs: int = 50,
-) -> CosineAnnealingLR:
+    lr_steps: Optional[List[int]] = None,
+    lr_gamma: float = 0.1,
+) -> MultiStepLR:
     """
-    Create cosine annealing scheduler for FFN training.
+    Create step decay scheduler for FFN training.
+
+    Matches original FFN paper: LR multiplied by gamma at each milestone.
 
     Parameters
     ----------
     optimizer : Optimizer
         Optimizer to schedule.
-    epochs : int
-        Total training epochs. Default 50.
+    lr_steps : list of int, optional
+        Epoch milestones to decay LR. Default [20, 40].
+    lr_gamma : float
+        Multiplicative factor at each milestone. Default 0.1.
 
     Returns
     -------
-    CosineAnnealingLR
+    MultiStepLR
         Configured scheduler.
     """
-    return CosineAnnealingLR(optimizer, T_max=epochs)
+    if lr_steps is None:
+        lr_steps = [20, 40]
+    return MultiStepLR(optimizer, milestones=lr_steps, gamma=lr_gamma)
 
 
 class FFNTrainer:
@@ -81,7 +90,8 @@ class FFNTrainer:
     Training manager for Frame Flexible Network.
 
     Handles FFN-specific training with multi-frame inputs and
-    temporal distillation loss.
+    temporal distillation loss. Supports AMP and gradient clipping
+    to match original paper settings.
 
     Parameters
     ----------
@@ -103,6 +113,10 @@ class FFNTrainer:
         Directory to save checkpoints. Default "checkpoints".
     lambda_kl : float, optional
         Weight for KL divergence loss. Default 1.0.
+    use_amp : bool, optional
+        Enable automatic mixed precision. Default False.
+    max_grad_norm : float or None, optional
+        Max gradient norm for clipping. None disables clipping. Default None.
 
     Attributes
     ----------
@@ -125,6 +139,8 @@ class FFNTrainer:
         device: Optional[torch.device] = None,
         checkpoint_dir: str = "checkpoints",
         lambda_kl: float = 1.0,
+        use_amp: bool = False,
+        max_grad_norm: Optional[float] = None,
     ) -> None:
         self.device = device if device is not None else get_device()
         self.model = model.to(self.device)
@@ -137,6 +153,11 @@ class FFNTrainer:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.lambda_kl = lambda_kl
 
+        # AMP setup (only on CUDA - MPS/CPU don't support GradScaler)
+        self.use_amp = use_amp and self.device.type == "cuda"
+        self.max_grad_norm = max_grad_norm
+        self.scaler = torch.amp.GradScaler() if self.use_amp else None
+
         # Tracking
         self.best_acc = 0.0
         self.best_acc_4f = 0.0
@@ -146,6 +167,9 @@ class FFNTrainer:
     def train_epoch(self) -> Dict[str, float]:
         """
         Train for one epoch with multi-frame inputs.
+
+        Uses AMP autocast and GradScaler when enabled.
+        Applies gradient clipping when max_grad_norm is set.
 
         Returns
         -------
@@ -165,6 +189,7 @@ class FFNTrainer:
         top1_16f = AverageMeter("Acc@1 (16F)")
 
         start_time = time.time()
+        amp_device = "cuda" if self.device.type == "cuda" else "cpu"
 
         for batch_idx, (v_4, v_8, v_16, labels) in enumerate(self.train_loader):
             # Move to device
@@ -173,16 +198,29 @@ class FFNTrainer:
             v_16 = v_16.to(self.device)
             labels = labels.to(self.device)
 
-            # Forward pass through all three frame counts
-            out_4, out_8, out_16 = self.model(v_4, v_8, v_16, training=True)
-
-            # Compute loss with temporal distillation
-            loss, loss_dict = self.criterion(out_4, out_8, out_16, labels)
-
-            # Backward pass
+            # Forward pass with optional AMP
             self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+            with torch.autocast(device_type=amp_device, enabled=self.use_amp):
+                out_4, out_8, out_16 = self.model(v_4, v_8, v_16, training=True)
+                loss, loss_dict = self.criterion(out_4, out_8, out_16, labels)
+
+            # Backward pass with optional AMP scaling
+            if self.use_amp:
+                self.scaler.scale(loss).backward()
+                self.scaler.unscale_(self.optimizer)
+                if self.max_grad_norm is not None:
+                    nn.utils.clip_grad_norm_(
+                        self.model.parameters(), self.max_grad_norm
+                    )
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                loss.backward()
+                if self.max_grad_norm is not None:
+                    nn.utils.clip_grad_norm_(
+                        self.model.parameters(), self.max_grad_norm
+                    )
+                self.optimizer.step()
 
             # Compute per-frame-count accuracy
             acc1_4f, _ = accuracy(out_4, labels, topk=(1, 5))
@@ -255,22 +293,25 @@ class FFNTrainer:
         top5 = AverageMeter("Acc@5")
 
         ce_criterion = nn.CrossEntropyLoss()
+        amp_device = "cuda" if self.device.type == "cuda" else "cpu"
 
         for v_4, v_8, v_16, labels in self.val_loader:
             labels = labels.to(self.device)
 
-            # Select input based on frame count
-            if frame_count == 4:
-                v = v_4.to(self.device)
-                outputs = self.model(x_4=v, training=False)
-            elif frame_count == 8:
-                v = v_8.to(self.device)
-                outputs = self.model(x_8=v, training=False)
-            else:  # 16
-                v = v_16.to(self.device)
-                outputs = self.model(x_16=v, training=False)
+            with torch.autocast(device_type=amp_device, enabled=self.use_amp):
+                # Select input based on frame count
+                if frame_count == 4:
+                    v = v_4.to(self.device)
+                    outputs = self.model(x_4=v, training=False)
+                elif frame_count == 8:
+                    v = v_8.to(self.device)
+                    outputs = self.model(x_8=v, training=False)
+                else:  # 16
+                    v = v_16.to(self.device)
+                    outputs = self.model(x_16=v, training=False)
 
-            loss = ce_criterion(outputs, labels)
+                loss = ce_criterion(outputs, labels)
+
             acc1, acc5 = accuracy(outputs, labels, topk=(1, 5))
 
             batch_size = v.size(0)
@@ -387,6 +428,13 @@ class FFNTrainer:
     def _save_checkpoint(self, filename: str) -> None:
         """Save checkpoint to checkpoint directory."""
         filepath = self.checkpoint_dir / filename
+        extra = {
+            "best_acc_4f": self.best_acc_4f,
+            "best_acc_8f": self.best_acc_8f,
+            "lambda_kl": self.lambda_kl,
+        }
+        if self.scaler is not None:
+            extra["scaler_state_dict"] = self.scaler.state_dict()
         save_checkpoint(
             model=self.model,
             optimizer=self.optimizer,
@@ -394,11 +442,7 @@ class FFNTrainer:
             epoch=self.current_epoch,
             best_acc=self.best_acc,
             filepath=str(filepath),
-            extra={
-                "best_acc_4f": self.best_acc_4f,
-                "best_acc_8f": self.best_acc_8f,
-                "lambda_kl": self.lambda_kl,
-            },
+            extra=extra,
         )
 
     def resume(self, checkpoint_path: str) -> int:
@@ -423,9 +467,18 @@ class FFNTrainer:
             device=self.device,
         )
         self.best_acc = info["best_acc"]
-        if "extra" in info:
-            self.best_acc_4f = info["extra"].get("best_acc_4f", 0.0)
-            self.best_acc_8f = info["extra"].get("best_acc_8f", 0.0)
+
+        # Restore extra state
+        checkpoint = torch.load(
+            checkpoint_path, map_location=self.device, weights_only=False
+        )
+        self.best_acc_4f = checkpoint.get("best_acc_4f", 0.0)
+        self.best_acc_8f = checkpoint.get("best_acc_8f", 0.0)
+
+        # Restore scaler state if available
+        if self.scaler is not None and "scaler_state_dict" in checkpoint:
+            self.scaler.load_state_dict(checkpoint["scaler_state_dict"])
+
         return info["epoch"] + 1
 
 

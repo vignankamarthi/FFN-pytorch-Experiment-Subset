@@ -117,6 +117,24 @@ def parse_args() -> argparse.Namespace:
         default=1.0,
         help="Weight for KL divergence loss",
     )
+    parser.add_argument(
+        "--lr_steps",
+        nargs="+",
+        type=int,
+        default=[20, 40],
+        help="Epochs to decay LR (default: 20 40)",
+    )
+    parser.add_argument(
+        "--use_amp",
+        action="store_true",
+        help="Enable automatic mixed precision (CUDA only)",
+    )
+    parser.add_argument(
+        "--max_grad_norm",
+        type=float,
+        default=None,
+        help="Max gradient norm for clipping (default: None = no clipping)",
+    )
 
     # Model
     parser.add_argument(
@@ -322,7 +340,7 @@ def main():
         momentum=args.momentum,
         weight_decay=args.weight_decay,
     )
-    scheduler = create_ffn_scheduler(optimizer, epochs=args.epochs)
+    scheduler = create_ffn_scheduler(optimizer, lr_steps=args.lr_steps)
 
     # Create trainer
     trainer = FFNTrainer(
@@ -335,6 +353,8 @@ def main():
         device=device,
         checkpoint_dir=args.checkpoint_dir,
         lambda_kl=args.lambda_kl,
+        use_amp=args.use_amp,
+        max_grad_norm=args.max_grad_norm,
     )
 
     # Resume if specified

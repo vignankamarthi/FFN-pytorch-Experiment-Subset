@@ -3,11 +3,13 @@
 Handles the complete training loop including:
 - Forward/backward passes
 - Optimization steps
-- Learning rate scheduling
+- Learning rate scheduling (step decay matching original paper)
+- Automatic mixed precision (AMP) training
+- Gradient clipping
 - Logging and checkpointing
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, List
 from pathlib import Path
 import time
 
@@ -15,7 +17,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.optim import SGD, Optimizer
-from torch.optim.lr_scheduler import CosineAnnealingLR, LRScheduler
+from torch.optim.lr_scheduler import MultiStepLR, LRScheduler
 
 from .utils import get_device, AverageMeter, accuracy
 from .checkpoint import save_checkpoint, load_checkpoint
@@ -56,26 +58,31 @@ def create_optimizer(
 
 def create_scheduler(
     optimizer: Optimizer,
-    epochs: int = 50,
-) -> CosineAnnealingLR:
+    lr_steps: Optional[List[int]] = None,
+    lr_gamma: float = 0.1,
+) -> MultiStepLR:
     """
-    Create cosine annealing learning rate scheduler.
+    Create step decay learning rate scheduler.
 
-    LR decreases following cosine curve from initial value to ~0.
+    Matches original FFN paper: LR multiplied by gamma at each milestone.
 
     Parameters
     ----------
     optimizer : Optimizer
         Optimizer to schedule.
-    epochs : int
-        Total training epochs. Default 50.
+    lr_steps : list of int, optional
+        Epoch milestones to decay LR. Default [20, 40].
+    lr_gamma : float
+        Multiplicative factor at each milestone. Default 0.1.
 
     Returns
     -------
-    CosineAnnealingLR
+    MultiStepLR
         Configured scheduler.
     """
-    return CosineAnnealingLR(optimizer, T_max=epochs)
+    if lr_steps is None:
+        lr_steps = [20, 40]
+    return MultiStepLR(optimizer, milestones=lr_steps, gamma=lr_gamma)
 
 
 class Trainer:
@@ -83,7 +90,8 @@ class Trainer:
     Training manager for vanilla TSM.
 
     Handles complete training loop with logging, validation,
-    and checkpointing.
+    and checkpointing. Supports AMP and gradient clipping
+    to match original paper settings.
 
     Parameters
     ----------
@@ -101,6 +109,10 @@ class Trainer:
         Device to train on. Auto-detected if None.
     checkpoint_dir : str, optional
         Directory to save checkpoints. Default "checkpoints".
+    use_amp : bool, optional
+        Enable automatic mixed precision. Default False.
+    max_grad_norm : float or None, optional
+        Max gradient norm for clipping. None disables clipping. Default None.
 
     Attributes
     ----------
@@ -121,6 +133,8 @@ class Trainer:
         scheduler: LRScheduler,
         device: Optional[torch.device] = None,
         checkpoint_dir: str = "checkpoints",
+        use_amp: bool = False,
+        max_grad_norm: Optional[float] = None,
     ) -> None:
         self.device = device if device is not None else get_device()
         self.model = model.to(self.device)
@@ -130,6 +144,11 @@ class Trainer:
         self.scheduler = scheduler
         self.checkpoint_dir = Path(checkpoint_dir)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+        # AMP setup (only on CUDA - MPS/CPU don't support GradScaler)
+        self.use_amp = use_amp and self.device.type == "cuda"
+        self.max_grad_norm = max_grad_norm
+        self.scaler = torch.amp.GradScaler() if self.use_amp else None
 
         # Loss function
         self.criterion = nn.CrossEntropyLoss()
@@ -141,6 +160,9 @@ class Trainer:
     def train_epoch(self) -> Dict[str, float]:
         """
         Train for one epoch.
+
+        Uses AMP autocast and GradScaler when enabled.
+        Applies gradient clipping when max_grad_norm is set.
 
         Returns
         -------
@@ -154,20 +176,36 @@ class Trainer:
         top5 = AverageMeter("Acc@5")
 
         start_time = time.time()
+        amp_device = "cuda" if self.device.type == "cuda" else "cpu"
 
         for batch_idx, (videos, labels) in enumerate(self.train_loader):
             # Move to device
             videos = videos.to(self.device)
             labels = labels.to(self.device)
 
-            # Forward pass
-            outputs = self.model(videos)
-            loss = self.criterion(outputs, labels)
-
-            # Backward pass
+            # Forward pass with optional AMP
             self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+            with torch.autocast(device_type=amp_device, enabled=self.use_amp):
+                outputs = self.model(videos)
+                loss = self.criterion(outputs, labels)
+
+            # Backward pass with optional AMP scaling
+            if self.use_amp:
+                self.scaler.scale(loss).backward()
+                self.scaler.unscale_(self.optimizer)
+                if self.max_grad_norm is not None:
+                    nn.utils.clip_grad_norm_(
+                        self.model.parameters(), self.max_grad_norm
+                    )
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                loss.backward()
+                if self.max_grad_norm is not None:
+                    nn.utils.clip_grad_norm_(
+                        self.model.parameters(), self.max_grad_norm
+                    )
+                self.optimizer.step()
 
             # Compute accuracy
             acc1, acc5 = accuracy(outputs, labels, topk=(1, 5))
@@ -200,6 +238,8 @@ class Trainer:
         """
         Run validation.
 
+        Uses autocast when AMP is enabled for faster inference.
+
         Returns
         -------
         dict
@@ -211,12 +251,15 @@ class Trainer:
         top1 = AverageMeter("Acc@1")
         top5 = AverageMeter("Acc@5")
 
+        amp_device = "cuda" if self.device.type == "cuda" else "cpu"
+
         for videos, labels in self.val_loader:
             videos = videos.to(self.device)
             labels = labels.to(self.device)
 
-            outputs = self.model(videos)
-            loss = self.criterion(outputs, labels)
+            with torch.autocast(device_type=amp_device, enabled=self.use_amp):
+                outputs = self.model(videos)
+                loss = self.criterion(outputs, labels)
 
             acc1, acc5 = accuracy(outputs, labels, topk=(1, 5))
 
@@ -302,6 +345,9 @@ class Trainer:
     def _save_checkpoint(self, filename: str) -> None:
         """Save checkpoint to checkpoint directory."""
         filepath = self.checkpoint_dir / filename
+        extra = {}
+        if self.scaler is not None:
+            extra["scaler_state_dict"] = self.scaler.state_dict()
         save_checkpoint(
             model=self.model,
             optimizer=self.optimizer,
@@ -309,6 +355,7 @@ class Trainer:
             epoch=self.current_epoch,
             best_acc=self.best_acc,
             filepath=str(filepath),
+            extra=extra if extra else None,
         )
 
     def resume(self, checkpoint_path: str) -> int:
@@ -333,4 +380,13 @@ class Trainer:
             device=self.device,
         )
         self.best_acc = info["best_acc"]
+
+        # Restore scaler state if available
+        if self.scaler is not None:
+            checkpoint = torch.load(
+                checkpoint_path, map_location=self.device, weights_only=False
+            )
+            if "scaler_state_dict" in checkpoint:
+                self.scaler.load_state_dict(checkpoint["scaler_state_dict"])
+
         return info["epoch"] + 1  # Resume from next epoch

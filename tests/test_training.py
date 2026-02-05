@@ -204,39 +204,50 @@ class TestOptimizer:
 
 
 class TestScheduler:
-    """Test learning rate scheduler."""
+    """Test learning rate scheduler (MultiStepLR with step decay)."""
 
     def test_create_scheduler(self, small_model):
         """Create scheduler with default settings."""
         optimizer = create_optimizer(small_model)
-        scheduler = create_scheduler(optimizer, epochs=50)
-        assert isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingLR)
+        scheduler = create_scheduler(optimizer)
+        assert isinstance(scheduler, torch.optim.lr_scheduler.MultiStepLR)
 
-    def test_scheduler_decreases_lr(self, small_model):
-        """LR should decrease over epochs."""
+    def test_scheduler_decreases_lr_at_milestones(self, small_model):
+        """LR should drop at milestone epochs (default: 20, 40)."""
         optimizer = create_optimizer(small_model, lr=0.01)
-        scheduler = create_scheduler(optimizer, epochs=10)
+        scheduler = create_scheduler(optimizer, lr_steps=[5, 8])
 
-        initial_lr = optimizer.param_groups[0]["lr"]
+        # Before first milestone: LR stays at 0.01
+        for _ in range(4):
+            scheduler.step()
+        assert optimizer.param_groups[0]["lr"] == pytest.approx(0.01)
 
-        # Step through half the epochs
-        for _ in range(5):
+        # After first milestone (epoch 5): LR drops to 0.001
+        scheduler.step()
+        assert optimizer.param_groups[0]["lr"] == pytest.approx(0.001)
+
+    def test_scheduler_lr_after_all_milestones(self, small_model):
+        """LR should be gamma^2 * initial after both milestones."""
+        optimizer = create_optimizer(small_model, lr=0.01)
+        scheduler = create_scheduler(optimizer, lr_steps=[3, 6])
+
+        # Step past both milestones
+        for _ in range(7):
             scheduler.step()
 
-        mid_lr = optimizer.param_groups[0]["lr"]
-        assert mid_lr < initial_lr
-
-    def test_scheduler_reaches_minimum(self, small_model):
-        """LR should be near zero at end of training."""
-        optimizer = create_optimizer(small_model, lr=0.01)
-        scheduler = create_scheduler(optimizer, epochs=10)
-
-        # Step through all epochs
-        for _ in range(10):
-            scheduler.step()
-
+        # 0.01 * 0.1 * 0.1 = 0.0001
         final_lr = optimizer.param_groups[0]["lr"]
-        assert final_lr < 0.001  # Should be very small
+        assert final_lr == pytest.approx(0.0001)
+
+    def test_scheduler_custom_gamma(self, small_model):
+        """Custom gamma should be respected."""
+        optimizer = create_optimizer(small_model, lr=0.01)
+        scheduler = create_scheduler(optimizer, lr_steps=[2], lr_gamma=0.5)
+
+        for _ in range(3):
+            scheduler.step()
+
+        assert optimizer.param_groups[0]["lr"] == pytest.approx(0.005)
 
 
 # -----------------------------------------------------------------------------
@@ -375,7 +386,7 @@ class TestTrainer:
         """Create trainer with all components."""
         model = small_model
         optimizer = create_optimizer(model)
-        scheduler = create_scheduler(optimizer, epochs=5)
+        scheduler = create_scheduler(optimizer, lr_steps=[2, 4])
 
         trainer = Trainer(
             model=model,
@@ -489,3 +500,105 @@ class TestEdgeCases:
 
         # Should complete without error
         assert True
+
+
+# -----------------------------------------------------------------------------
+# AMP and Gradient Clipping Tests
+# -----------------------------------------------------------------------------
+
+
+class TestAMPAndGradClipping:
+    """Test AMP and gradient clipping features."""
+
+    def test_trainer_accepts_amp_flag(self, small_model, synthetic_dataloader, device, tmp_path):
+        """Trainer should accept use_amp parameter without error."""
+        optimizer = create_optimizer(small_model)
+        scheduler = create_scheduler(optimizer)
+
+        # Should not raise even on non-CUDA devices
+        trainer = Trainer(
+            model=small_model,
+            train_loader=synthetic_dataloader,
+            val_loader=synthetic_dataloader,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            device=device,
+            checkpoint_dir=str(tmp_path / "checkpoints"),
+            use_amp=True,
+        )
+
+        # On non-CUDA, AMP should be silently disabled
+        if device.type != "cuda":
+            assert trainer.use_amp is False
+            assert trainer.scaler is None
+
+    def test_trainer_with_grad_clipping(self, small_model, synthetic_dataloader, device, tmp_path):
+        """Trainer should clip gradients when max_grad_norm is set."""
+        optimizer = create_optimizer(small_model)
+        scheduler = create_scheduler(optimizer)
+
+        trainer = Trainer(
+            model=small_model,
+            train_loader=synthetic_dataloader,
+            val_loader=synthetic_dataloader,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            device=device,
+            checkpoint_dir=str(tmp_path / "checkpoints"),
+            max_grad_norm=1.0,  # Very aggressive clipping
+        )
+
+        # Should complete training without error
+        metrics = trainer.train_epoch()
+        assert metrics["loss"] > 0
+
+    def test_grad_clipping_limits_norm(self, small_model, device):
+        """Gradient norm should be clipped to max_grad_norm."""
+        model = small_model.to(device)
+        max_norm = 1.0
+
+        videos = torch.randn(2, 3, 4, 224, 224).to(device)
+        labels = torch.randint(0, 10, (2,)).to(device)
+
+        outputs = model(videos)
+        loss = nn.CrossEntropyLoss()(outputs, labels)
+        loss.backward()
+
+        # Clip and check
+        nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+        total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
+        assert total_norm <= max_norm + 1e-6
+
+    @pytest.mark.skipif(
+        not torch.cuda.is_available(),
+        reason="AMP requires CUDA",
+    )
+    def test_trainer_amp_on_cuda(self, tmp_path):
+        """AMP training should work on CUDA with GradScaler."""
+        device = torch.device("cuda")
+        model = TSMResNet50(num_classes=10, num_frames=4, pretrained=False)
+        optimizer = create_optimizer(model)
+        scheduler = create_scheduler(optimizer)
+
+        videos = torch.randn(4, 3, 4, 224, 224)
+        labels = torch.randint(0, 10, (4,))
+        dataset = TensorDataset(videos, labels)
+        loader = DataLoader(dataset, batch_size=2)
+
+        trainer = Trainer(
+            model=model,
+            train_loader=loader,
+            val_loader=loader,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            device=device,
+            checkpoint_dir=str(tmp_path / "checkpoints"),
+            use_amp=True,
+            max_grad_norm=20.0,
+        )
+
+        assert trainer.use_amp is True
+        assert trainer.scaler is not None
+
+        metrics = trainer.train_epoch()
+        assert metrics["loss"] > 0

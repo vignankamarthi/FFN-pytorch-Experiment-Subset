@@ -76,6 +76,24 @@ def parse_args() -> argparse.Namespace:
         default=5e-4,
         help="Weight decay (default: 5e-4)",
     )
+    parser.add_argument(
+        "--lr_steps",
+        nargs="+",
+        type=int,
+        default=[20, 40],
+        help="Epochs to decay LR (default: 20 40)",
+    )
+    parser.add_argument(
+        "--use_amp",
+        action="store_true",
+        help="Enable automatic mixed precision (CUDA only)",
+    )
+    parser.add_argument(
+        "--max_grad_norm",
+        type=float,
+        default=None,
+        help="Max gradient norm for clipping (default: None = no clipping)",
+    )
 
     # DataLoader
     parser.add_argument(
@@ -136,7 +154,10 @@ def main():
     print(f"Frames per video: {args.num_frames}")
     print(f"Batch size: {args.batch_size}")
     print(f"Learning rate: {args.lr}")
+    print(f"LR schedule: step decay at epochs {args.lr_steps}")
     print(f"Epochs: {args.epochs}")
+    print(f"AMP: {args.use_amp}")
+    print(f"Gradient clipping: {args.max_grad_norm}")
     print("=" * 60)
 
     # Create datasets
@@ -195,7 +216,7 @@ def main():
         momentum=args.momentum,
         weight_decay=args.weight_decay,
     )
-    scheduler = create_scheduler(optimizer, epochs=args.epochs)
+    scheduler = create_scheduler(optimizer, lr_steps=args.lr_steps)
 
     # Create trainer
     trainer = Trainer(
@@ -206,6 +227,8 @@ def main():
         scheduler=scheduler,
         device=device,
         checkpoint_dir=args.checkpoint_dir,
+        use_amp=args.use_amp,
+        max_grad_norm=args.max_grad_norm,
     )
 
     # Resume if specified
