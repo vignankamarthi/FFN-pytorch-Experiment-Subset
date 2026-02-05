@@ -10,20 +10,18 @@
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=kamarthi.v@northeastern.edu
 
-# Use pip --user installed packages (no conda in sbatch environment)
-export PATH="$HOME/.local/bin:$PATH"
+# Load modules
+module load cuda/12.1.1
+module load anaconda3/2024.06
+
+# Activate environment
+source activate ffn
 
 # Change to project directory
-cd ~/ondemand/FFN-pytorch-Experiment-Subset
-
-# Print environment info for debugging
-echo "Python: $(which python3)"
-echo "PyTorch CUDA: $(python3 -c 'import torch; print(torch.cuda.is_available())')"
-echo "Working directory: $(pwd)"
-echo "GPU: $CUDA_VISIBLE_DEVICES"
+cd ~/FFN-pytorch-Experiment-Subset
 
 # Run Phase 5: Vanilla TSM Training (should complete in ~4-6 hours)
-python3 train_tsm.py \
+python train_tsm.py \
     --epochs 50 \
     --batch_size 8 \
     --num_workers 8 \
