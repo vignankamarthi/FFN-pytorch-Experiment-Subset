@@ -59,7 +59,7 @@
 
 **CLUSTER REQUIRED** — 50 epochs x 169k videos. Expect 1-2 days on GPU cluster, 1-2 weeks on local Mac.
 
-- [X] 5.1. Hyperparams: SGD, momentum 0.9, weight decay 5e-4, LR 0.01 cosine decay, batch 8/GPU, 50 epochs. Reference: `2D_Network/opts.py`
+- [X] 5.1. Hyperparams: SGD, momentum 0.9, weight decay 5e-4, LR 0.01, MultiStepLR decay at epochs 20 and 40 (gamma=0.1), batch 32, 50 epochs, AMP enabled, gradient clipping max_norm=20. GPU: 1x H200 (equivalent to paper's 2 standard GPUs). Reference: `2D_Network/exp/tsm_sthv2/run.sh`
 - [ ] 5.2. Train at 16F only. Save checkpoints. Reference: `2D_Network/main.py`
 - [ ] 5.3. Evaluate same checkpoint at 16F (~61%), 8F (~52%), 4F (~31%). This is TFD.
 
