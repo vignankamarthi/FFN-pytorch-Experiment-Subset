@@ -10,15 +10,11 @@
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=kamarthi.v@northeastern.edu
 
-# Load modules
-module load cuda/12.1.1
-module load anaconda3/2024.06
-
-# Activate environment
-source activate ffn
+# Use pip --user installed packages
+export PATH="$HOME/.local/bin:$PATH"
 
 # Change to project directory
-cd ~/FFN-pytorch-Experiment-Subset
+cd ~/ondemand/FFN-pytorch-Experiment-Subset
 
 # Run FFN Training - target 50 epochs
 # If checkpoint exists, it resumes automatically
@@ -29,7 +25,7 @@ CHECKPOINT_FILE="checkpoints/ffn/latest.pth"
 
 if [ -f "$CHECKPOINT_FILE" ]; then
     echo "Resuming from checkpoint..."
-    python train_ffn.py \
+    python3 train_ffn.py \
         --video_dir database/data/20bn-something-something-v2 \
         --labels_dir database/labels \
         --epochs 50 \
@@ -41,7 +37,7 @@ if [ -f "$CHECKPOINT_FILE" ]; then
         --resume checkpoints/ffn/latest.pth
 else
     echo "Starting fresh training..."
-    python train_ffn.py \
+    python3 train_ffn.py \
         --video_dir database/data/20bn-something-something-v2 \
         --labels_dir database/labels \
         --epochs 50 \

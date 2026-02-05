@@ -10,18 +10,14 @@
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=kamarthi.v@northeastern.edu
 
-# Load modules
-module load cuda/12.1.1
-module load anaconda3/2024.06
-
-# Activate environment
-source activate ffn
+# Use pip --user installed packages
+export PATH="$HOME/.local/bin:$PATH"
 
 # Change to project directory
-cd ~/FFN-pytorch-Experiment-Subset
+cd ~/ondemand/FFN-pytorch-Experiment-Subset
 
-# Run Phase 5: Vanilla TSM Training (should complete in ~4-6 hours)
-python train_tsm.py \
+# Run Phase 5: Vanilla TSM Training
+python3 train_tsm.py \
     --epochs 50 \
     --batch_size 8 \
     --num_workers 8 \
