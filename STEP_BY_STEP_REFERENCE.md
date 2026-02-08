@@ -55,13 +55,14 @@
 
 ---
 
-## Phase 5: Train Vanilla TSM
+## Phase 5: Train Vanilla TSM -- COMPLETE
 
-**CLUSTER REQUIRED** — 50 epochs x 169k videos. Expect 1-2 days on GPU cluster, 1-2 weeks on local Mac.
+**CLUSTER REQUIRED** — 50 epochs x 169k videos on 1x NVIDIA H200.
 
 - [X] 5.1. Hyperparams: SGD, momentum 0.9, weight decay 5e-4, LR 0.01, MultiStepLR decay at epochs 20 and 40 (gamma=0.1), batch 32, 50 epochs, AMP enabled, gradient clipping max_norm=20. GPU: 1x H200 (equivalent to paper's 2 standard GPUs). Reference: `2D_Network/exp/tsm_sthv2/run.sh`
-- [ ] 5.2. Train at 16F only. Save checkpoints. Reference: `2D_Network/main.py`
-- [ ] 5.3. Evaluate same checkpoint at 16F (~61%), 8F (~52%), 4F (~31%). This is TFD.
+- [X] 5.2. Train at 16F only. 50 epochs complete. Best Val Acc@1: 56.69%, Final Val Acc@1: 54.39%. Checkpoint saved to `checkpoints/tsm/best.pth`.
+
+**Note**: Multi-frame TFD evaluation (4F, 8F, 16F) moved to Phase 8 for unified comparison with FFN results.
 
 ---
 
@@ -75,22 +76,24 @@
 
 ---
 
-## Phase 7: Train FFN
+## Phase 7: Train FFN -- IN PROGRESS
 
-**CLUSTER REQUIRED** — 50 epochs x 169k videos x 3 frame counts per batch. Expect 1-2 days on GPU cluster.
+**CLUSTER REQUIRED** — 50 epochs x 169k videos x 3 frame counts per batch. Running on 1x NVIDIA H200.
 
 - [X] 7.1. Same hyperparams as vanilla TSM.
 - [X] 7.2. Each batch: load v_L, v_M, v_H from same video, forward all three, compute combined loss. Reference: `2D_Network/main_FFN.py` lines 342-368
-- [ ] 7.3. Train 50 epochs. Reference: `2D_Network/opts.py` for config, `main_FFN.py` for loop.
+- [ ] 7.3. Train 50 epochs. Currently running on cluster (epoch 9+ of 50, 8 jobs queued). Reference: `2D_Network/opts.py` for config, `main_FFN.py` for loop.
 
 ---
 
-## Phase 8: Validate FFN
+## Phase 8: Unified Evaluation and Final Comparison
 
-- [ ] 8.1. Evaluate at 16F → expect ~63.61%
-- [ ] 8.2. Evaluate at 8F → expect ~61.86%
-- [ ] 8.3. Evaluate at 4F → expect ~56.07%
-- [ ] 8.4. Compare to vanilla TSM. Build your Table 1. Reference: `main_FFN.py` lines 422-433 for inference sub-network selection.
+Write eval script, evaluate both models at all frame counts, build the comparison table.
+
+- [ ] 8.1. Write `eval_tfd.py` — loads a checkpoint, evaluates at 4F, 8F, 16F, prints results table. Test locally on a few batches.
+- [ ] 8.2. Evaluate vanilla TSM (`checkpoints/tsm/best.pth`) at 4F, 8F, 16F on cluster. This demonstrates TFD collapse.
+- [ ] 8.3. Evaluate FFN (`checkpoints/ffn/best.pth`) at 4F, 8F, 16F on cluster. This demonstrates TFD recovery.
+- [ ] 8.4. Build comparison table, fill FINAL_REPORT.md with results, complete reproduction.
 
 ---
 

@@ -107,6 +107,25 @@ graph TB
 | `test_kl_divergence_loss` | Temporal distillation loss computes |
 | `test_combined_loss` | CE + lambda*KL works |
 
+#### test_eval.py (Phase 8 evaluation script)
+
+| Test | What It Verifies |
+|------|------------------|
+| `test_load_16f_checkpoint_at_16f` | TSM checkpoint loads at matching frame count |
+| `test_load_16f_checkpoint_at_8f` | TSM checkpoint loads at different frame count (TFD eval) |
+| `test_load_16f_checkpoint_at_4f` | TSM checkpoint loads at 4F (key TFD test) |
+| `test_checkpoint_has_expected_keys` | Checkpoint contains model_state_dict, epoch, best_acc |
+| `test_load_ffn_checkpoint` | FFN checkpoint loads correctly |
+| `test_forward_pass[4/8/16]` | TSM forward works at each frame count after loading 16F checkpoint |
+| `test_outputs_are_valid_logits[4/8/16]` | No NaN/Inf in outputs |
+| `test_inference_single_frame_count[4/8/16]` | FFN inference mode works per frame count |
+| `test_perfect_accuracy` | Accuracy function on correct predictions |
+| `test_zero_accuracy` | Accuracy function on wrong predictions |
+| `test_top5_includes_correct` | Top-5 finds correct class when not top-1 |
+| `test_single_update` | AverageMeter tracking |
+| `test_weighted_average` | Weighted average across batches |
+| `test_count_tracks_total` | Sample count accumulation |
+
 ---
 
 ### Layer 2: Integration Tests
@@ -199,6 +218,7 @@ graph TB
 |--------------|----------------|
 | Phase 5 (Vanilla TSM Training) | test_data, test_models, test_integration, test_training, test_checkpoint |
 | Phase 7 (FFN Training) | All above + test_ffn + FFN-specific integration/training tests |
+| Phase 8 (Unified Evaluation) | eval script local test (few batches), checkpoint loading verified |
 
 ---
 

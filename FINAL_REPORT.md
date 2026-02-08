@@ -89,7 +89,7 @@ Every component was implemented from scratch by studying the paper and reference
 
 ### Test Coverage
 
-124 tests covering all components:
+144 tests covering all components:
 
 | Test File | What It Tests | Count |
 |-----------|---------------|-------|
@@ -100,6 +100,7 @@ Every component was implemented from scratch by studying the paper and reference
 | test_training.py | Optimizer, scheduler, training loop, AMP, grad clip | 35 |
 | test_checkpoint.py | Save/load, device mapping, round-trip | 15 |
 | test_scripts.py | Script existence, syntax, structure | 12 |
+| test_eval.py | Multi-frame checkpoint loading, forward pass, accuracy | 20 |
 
 All tests pass on CPU and MPS (Mac). CUDA-specific AMP test skipped on non-CUDA hardware.
 
@@ -107,7 +108,20 @@ All tests pass on CPU and MPS (Mac). CUDA-specific AMP test skipped on non-CUDA 
 
 ## Results
 
-### Phase 5: Vanilla TSM (TFD Demonstration)
+### Phase 5: Vanilla TSM Training (16F only)
+
+| Metric | Value |
+|--------|-------|
+| Best Val Acc@1 (16F) | 56.69% |
+| Final Val Acc@1 (16F) | 54.39% |
+| Final Val Acc@5 (16F) | 81.37% |
+| Paper 16F Acc@1 | 61.00% |
+
+Training complete (50/50 epochs). Multi-frame TFD evaluation (4F, 8F) deferred to Phase 8.
+
+### Phase 8: Unified Evaluation (TFD Demonstration + FFN Recovery)
+
+#### Vanilla TSM -- TFD Collapse
 
 | Eval Frames | Paper | Ours |
 |-------------|-------|------|
@@ -117,7 +131,7 @@ All tests pass on CPU and MPS (Mac). CUDA-specific AMP test skipped on non-CUDA 
 
 **TFD Gap (16F - 4F)**: Paper: 30 points | Ours: --
 
-### Phase 7: FFN (TFD Recovery)
+#### FFN -- TFD Recovery
 
 | Eval Frames | Paper | Ours |
 |-------------|-------|------|
@@ -127,28 +141,7 @@ All tests pass on CPU and MPS (Mac). CUDA-specific AMP test skipped on non-CUDA 
 
 **FFN 4F improvement over vanilla**: Paper: +25 points | Ours: --
 
-*Results will be filled after cluster training completes.*
-
----
-
-## Analysis
-
-*(To be completed after training)*
-
-### TFD Phenomenon
-
-- Did vanilla TSM show the expected accuracy collapse from 16F to 4F?
-- How does the TFD gap magnitude compare to the paper's 30 points?
-
-### FFN Recovery
-
-- Did FFN substantially improve 4F accuracy over vanilla TSM?
-- Are 8F and 16F accuracies also improved?
-
-### Discrepancies
-
-- Any significant deviations from paper numbers?
-- Possible sources: single GPU vs multi-GPU BN statistics, dataset version differences, augmentation details
+*Results will be filled after Phase 8 evaluation on cluster.*
 
 ---
 
@@ -157,4 +150,4 @@ All tests pass on CPU and MPS (Mac). CUDA-specific AMP test skipped on non-CUDA 
 - [ ] TFD demonstrated: vanilla TSM shows >20 point gap between 16F and 4F
 - [ ] FFN recovers: 4F accuracy substantially improved over vanilla TSM
 - [ ] Results directionally consistent with paper
-- [ ] Discrepancies explained
+- [ ] Comparison table complete
