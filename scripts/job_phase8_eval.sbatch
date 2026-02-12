@@ -25,7 +25,7 @@ echo ""
 echo "--- Evaluating Vanilla TSM at 4F, 8F, 16F ---"
 echo ""
 
-TSM_CHECKPOINT="checkpoints/tsm/best.pth"
+TSM_CHECKPOINT="checkpoints/vanilla_tsm/best.pth"
 
 if [ -f "$TSM_CHECKPOINT" ]; then
     python3 eval_tfd.py \
