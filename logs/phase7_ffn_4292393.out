@@ -1,0 +1,33 @@
+Resuming from checkpoint...
+============================================================
+DETECTED: CUDA (NVIDIA GPU)
+  GPU: NVIDIA H200
+  Available GPUs: 1
+============================================================
+Using device: cuda
+Loading datasets...
+Creating FFN model...
+Resuming from checkpoint: checkpoints/ffn/latest.pth
+Resuming from epoch 50
+
+Starting FFN training...
+FFN Training on cuda
+Training samples: 168913
+Validation samples: 24777
+Epochs: 50
+Lambda KL: 1.0
+------------------------------------------------------------
+
+FFN Training complete!
+  Best 4F accuracy:  51.51%
+  Best 8F accuracy:  56.65%
+  Best 16F accuracy: 58.87%
+
+============================================================
+Final TFD Evaluation
+============================================================
+  4F Accuracy:  48.48%
+  8F Accuracy:  54.03%
+  16F Accuracy: 55.62%
+  TFD Gap (16F - 4F): 7.15 points
+Job complete! Check if all 50 epochs finished. If not, resubmit this script.
