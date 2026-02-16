@@ -40,7 +40,6 @@ Thumbs.db
 # Training outputs
 checkpoints/
 runs/
-logs/
 *.pt
 *.pth
 
