@@ -76,24 +76,24 @@
 
 ---
 
-## Phase 7: Train FFN -- IN PROGRESS
+## Phase 7: Train FFN -- COMPLETE
 
-**CLUSTER REQUIRED** — 50 epochs x 169k videos x 3 frame counts per batch. Running on 1x NVIDIA H200.
+**CLUSTER REQUIRED** — 50 epochs x 169k videos x 3 frame counts per batch. Ran on 1x NVIDIA H200.
 
 - [X] 7.1. Same hyperparams as vanilla TSM.
 - [X] 7.2. Each batch: load v_L, v_M, v_H from same video, forward all three, compute combined loss. Reference: `2D_Network/main_FFN.py` lines 342-368
-- [ ] 7.3. Train 50 epochs. Currently running on cluster (epoch 9+ of 50, 8 jobs queued). Reference: `2D_Network/opts.py` for config, `main_FFN.py` for loop.
+- [X] 7.3. Train 50 epochs. Best checkpoint at epoch 20 (best val acc 58.87%). Final epoch 50 val: 4F 48.48%, 8F 54.03%, 16F 55.62%. Checkpoint saved to `checkpoints/ffn/best.pth`.
 
 ---
 
-## Phase 8: Unified Evaluation and Final Comparison
+## Phase 8: Unified Evaluation and Final Comparison -- COMPLETE
 
-Write eval script, evaluate both models at all frame counts, build the comparison table.
+Eval script written, both models evaluated at all frame counts, comparison table built.
 
-- [ ] 8.1. Write `eval_tfd.py` — loads a checkpoint, evaluates at 4F, 8F, 16F, prints results table. Test locally on a few batches.
-- [ ] 8.2. Evaluate vanilla TSM (`checkpoints/tsm/best.pth`) at 4F, 8F, 16F on cluster. This demonstrates TFD collapse.
-- [ ] 8.3. Evaluate FFN (`checkpoints/ffn/best.pth`) at 4F, 8F, 16F on cluster. This demonstrates TFD recovery.
-- [ ] 8.4. Build comparison table, fill FINAL_REPORT.md with results, complete reproduction.
+- [X] 8.1. Write `eval_tfd.py` — loads a checkpoint, evaluates at 4F, 8F, 16F, prints results table. Tested locally on a few batches.
+- [X] 8.2. Evaluate vanilla TSM at 4F, 8F, 16F on cluster. TFD collapse confirmed: 56.68% (16F) -> 30.13% (4F), gap = 26.55 pts.
+- [X] 8.3. Evaluate FFN at 4F, 8F, 16F on cluster. TFD recovery confirmed: 58.85% (16F) -> 50.86% (4F), gap = 8.00 pts.
+- [X] 8.4. Build comparison table, fill FINAL_REPORT.md with results, complete reproduction. FFN recovers +20.73 pts at 4F, reduces TFD gap by 70%.
 
 ---
 
