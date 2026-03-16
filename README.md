@@ -17,10 +17,12 @@ The FFN paper solves Temporal Frequency Deviation (TFD) across multiple architec
 
 Train a video model at 16 frames, evaluate at fewer frames, watch accuracy collapse:
 
-| Model | Train Frames | Eval @ 16F | Eval @ 8F | Eval @ 4F |
-|-------|:------------:|:----------:|:---------:|:---------:|
-| Vanilla TSM | 16 | ~61% | ~TBD% | ~31% |
-| **FFN-TSM** | 4, 8, 16 | ~TBD% | ~TBD% | **~56%** |
+| Model | Train Frames | Eval @ 16F | Eval @ 8F | Eval @ 4F | TFD Gap |
+|-------|:------------:|:----------:|:---------:|:---------:|:-------:|
+| Vanilla TSM | 16 | 56.68% | 48.93% | 30.13% | 26.55 pts |
+| **FFN-TSM** | 4, 8, 16 | **58.85%** | **56.52%** | **50.86%** | **8.00 pts** |
+
+FFN reduces the TFD gap by **70%** (26.55 to 8.00 points). The 4F recovery is the headline result: vanilla TSM at 4F scores 30.13%, FFN at 4F scores **50.86%** -- a **+20.73 point improvement** from frame-count-specific BatchNorm and temporal distillation alone.
 
 Root cause: BatchNorm statistics computed on 16-frame inputs mismatch when fewer frames arrive at test time. FFN fixes this with specialized BatchNorm (private BN per frame count), temporal distillation (KL divergence aligning low-frame predictions to high-frame), and weight alteration (lightweight depthwise adapters).
 
@@ -72,7 +74,16 @@ pytest tests/ -v          # Full suite (144 tests)
 
 ## Results
 
-See [FINAL_REPORT.md](FINAL_REPORT.md) for the full experiment report including training configuration, results, and analysis.
+| Metric | Vanilla TSM | FFN | Improvement |
+|--------|:-----------:|:---:|:-----------:|
+| 4F Acc@1 | 30.13% | 50.86% | +20.73 pts |
+| 8F Acc@1 | 48.93% | 56.52% | +7.59 pts |
+| 16F Acc@1 | 56.68% | 58.85% | +2.17 pts |
+| TFD Gap (16F-4F) | 26.55 pts | 8.00 pts | 70% reduction |
+
+Our absolute accuracies are ~4 points below the paper across both models at 16F, attributable to single-GPU training (1x H200 vs. 2-GPU distributed). The offset is consistent, so relative comparisons remain valid. TFD gap and recovery percentages match or exceed the paper's reported values.
+
+See [FINAL_REPORT.md](FINAL_REPORT.md) for the full experiment report including training configuration, architecture details, and discrepancy analysis.
 
 ## Purpose
 

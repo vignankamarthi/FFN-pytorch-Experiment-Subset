@@ -47,3 +47,9 @@ runs/
 .ipynb_checkpoints/
 
 **/CLAUDE.md
+**/MEMORY.md
+**/ANTIPATTERNS.md
+
+# Research papers and internal docs
+*.pdf
+TFD_RESEARCH_LANDSCAPE_2026.md
